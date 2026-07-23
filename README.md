@@ -86,8 +86,9 @@ client.subscribe("priompt://acme/support/agent", (version, classification) => {
 
 ## For maintainers of this library
 
-`proto/priompt/v1/prompt.proto` is a copy of the contract; the source of truth
-lives in the core **priompt** repo — sync it when the API changes. There is no
+`proto/priompt/v1/prompt.proto` is vendored from the shared **proto** repo
+(the single source of truth) so the npm package stays self-contained. After
+the contract changes, run `npm run sync-proto` to re-vendor it. There is no
 generated code to rebuild (the proto is loaded at runtime).
 
 Quick smoke test:

@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "Priompt JavaScript adapter",
   "main": "client.js",
+  "scripts": {
+    "sync-proto": "node -e \"const fs=require('fs');fs.mkdirSync('proto/priompt/v1',{recursive:true});fs.copyFileSync('../proto/proto/priompt/v1/prompt.proto','proto/priompt/v1/prompt.proto')\""
+  },
   "dependencies": {
     "@grpc/grpc-js": "^1.10.0",
     "@grpc/proto-loader": "^0.7.0"
