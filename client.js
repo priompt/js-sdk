@@ -50,7 +50,7 @@ class PromptClient {
   // One connection string covers local/self-host/cloud: pass url or set
   // PRIOMPT_URL (priompt://<token>@host:port). An explicit host wins; an
   // explicit token overrides the URL's token.
-  constructor({ host, token, tls = false, natsUrl, natsToken, url } = {}) {
+  constructor({ host, token, tls = false, caCert, clientCert, clientKey, natsUrl, natsToken, url } = {}) {
     if (!host) {
       const raw = url || process.env.PRIOMPT_URL;
       if (raw) {
@@ -61,7 +61,31 @@ class PromptClient {
     }
     if (!host) throw new Error("PromptClient needs host, url, or PRIOMPT_URL");
     const pkg = loadService();
-    const creds = tls ? grpc.credentials.createSsl() : grpc.credentials.createInsecure();
+    // caCert, clientCert and clientKey are file paths.
+    //
+    // Without caCert this client could only reach a server whose certificate
+    // chains to a public root — but a self-hosted Priompt is normally fronted by
+    // a private CA, which is exactly what the Go CLI's -ca-cert and the Python
+    // client's ca_cert exist for. This client had neither, so TLS deployments
+    // were simply unreachable from Node.
+    //
+    // clientCert/clientKey are for a server started with -client-ca, which
+    // refuses connections lacking a certificate signed by that CA before
+    // authentication runs at all.
+    let creds;
+    if (tls) {
+      const fs = require("fs");
+      if (Boolean(clientCert) !== Boolean(clientKey)) {
+        throw new Error("clientCert and clientKey must be given together");
+      }
+      creds = grpc.credentials.createSsl(
+        caCert ? fs.readFileSync(caCert) : null,
+        clientKey ? fs.readFileSync(clientKey) : null,
+        clientCert ? fs.readFileSync(clientCert) : null
+      );
+    } else {
+      creds = grpc.credentials.createInsecure();
+    }
     this._stub = new pkg.PromptService(host, creds);
     this._meta = new grpc.Metadata();
     if (token) this._meta.add("authorization", `Bearer ${token}`);

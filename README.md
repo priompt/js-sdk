@@ -57,6 +57,8 @@ new PromptClient({ host, token, tls = false, natsUrl, natsToken, url })
 | `url` | a full `priompt://<token>@host:port` string; defaults to `PRIOMPT_URL` |
 | `token` | sent as `authorization: Bearer <token>`; explicit value wins over the url's token |
 | `tls` | use TLS to reach the server |
+| `caCert` | path to the CA certificate that signed the server's cert — required for a private CA, which is the usual self-hosted case |
+| `clientCert` / `clientKey` | paths to a client certificate and key, for a server started with `-client-ca` (mTLS). Both or neither |
 | `natsUrl` | broker endpoint for `subscribe()`; may carry the credential as `nats://<token>@host:4222` |
 | `natsToken` | broker credential, if you would rather pass it separately; wins over the url's |
 
