@@ -30,11 +30,27 @@ function parseUrl(raw) {
   return { host, token: u.username || undefined };
 }
 
+// parseNatsUrl splits a credential out of a nats:// url. The nats.js client
+// takes the token as a connection option rather than reading it from the url,
+// so carrying it in the url — which is how every other Priompt address works —
+// has to be unpacked here.
+function parseNatsUrl(raw) {
+  try {
+    const u = new URL(raw);
+    const token = decodeURIComponent(u.password || u.username || "");
+    u.username = "";
+    u.password = "";
+    return { servers: u.toString().replace(/\/$/, ""), token: token || undefined };
+  } catch {
+    return { servers: raw, token: undefined };
+  }
+}
+
 class PromptClient {
   // One connection string covers local/self-host/cloud: pass url or set
   // PRIOMPT_URL (priompt://<token>@host:port). An explicit host wins; an
   // explicit token overrides the URL's token.
-  constructor({ host, token, tls = false, natsUrl, url } = {}) {
+  constructor({ host, token, tls = false, natsUrl, natsToken, url } = {}) {
     if (!host) {
       const raw = url || process.env.PRIOMPT_URL;
       if (raw) {
@@ -49,7 +65,16 @@ class PromptClient {
     this._stub = new pkg.PromptService(host, creds);
     this._meta = new grpc.Metadata();
     if (token) this._meta.add("authorization", `Bearer ${token}`);
-    this._natsUrl = natsUrl;
+    // The broker requires its own credential once it is reachable off-loopback:
+    // change events name every prompt that moves and carry the verdict agents
+    // gate auto-reload on, so it is not a public channel. Accept the token
+    // explicitly, or embedded in the url as nats://<token>@host:4222 — the
+    // nats.js client does not read a token out of the URL itself.
+    if (natsUrl) {
+      const { servers, token: urlToken } = parseNatsUrl(natsUrl);
+      this._natsUrl = servers;
+      this._natsToken = natsToken !== undefined ? natsToken : urlToken;
+    }
   }
 
   _call(method, req) {
@@ -80,7 +105,9 @@ class PromptClient {
   async subscribe(uri, onChange) {
     if (!this._natsUrl) throw new Error("set natsUrl on PromptClient to subscribe");
     const { connect, StringCodec } = require("nats");
-    const nc = await connect({ servers: this._natsUrl });
+    const opts = { servers: this._natsUrl };
+    if (this._natsToken) opts.token = this._natsToken;
+    const nc = await connect(opts);
     const sc = StringCodec();
     (async () => {
       for await (const m of nc.subscribe(subject(uri))) {
