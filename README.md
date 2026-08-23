@@ -78,8 +78,8 @@ client.subscribe(uri, onChange)            // be notified the moment the prompt 
 ## Live updates
 
 When someone publishes a new version, the server pushes a notification that
-includes a **semantic verdict** — how big the change really is. Auto-reload the
-safe ones, hold the dangerous ones:
+includes a **semantic verdict** — how far the change's meaning shift spreads
+through the prompt. Your app decides what to act on and what to hold:
 
 `subscribe()` needs `natsUrl` — it talks to the broker directly, not through the
 gRPC endpoint — and the broker's own credential when one is configured.
@@ -92,13 +92,25 @@ const client = new PromptClient({
 });
 
 client.subscribe("priompt://acme/support/agent", (version, classification) => {
-  if (classification === "structural") {
-    alertAHuman(version);     // the meaning changed shape — review it
+  // Which verdicts this app acts on by itself. Everything else waits for a
+  // human — including an empty verdict, which means the server could not
+  // classify the change and published anyway. "" does not mean "safe"; it
+  // means nobody checked.
+  if (["minor edit", "localized tweak", "new"].includes(classification)) {
+    reload(version);          // contained change — pick it up
   } else {
-    reload(version);          // safe to pick up automatically
+    alertAHuman(version);     // structural, or unclassified — hold it
   }
 });
 ```
+
+**The verdict measures spread, not risk.** A one-line edit turning *"offer a
+refund when reasonable"* into *"never offer a refund"* reads as a `localized
+tweak` — correctly, since the rest of the prompt still means what it did — and
+is still a policy reversal worth a human's eyes. Where you draw the line is your
+policy; the verdict is triage, not approval.
+
+`stub-agent.js` in this repo is a working example of the pattern.
 
 Treat the event as a notification that *something* changed, and re-fetch with
 `get()` over the authenticated gRPC channel rather than trusting the version and
