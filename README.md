@@ -48,7 +48,7 @@ One environment variable configures everything:
 credential, so `new PromptClient()` with no arguments just works.
 
 ```js
-new PromptClient({ host, token, tls = false, natsUrl, url })
+new PromptClient({ host, token, tls = false, natsUrl, natsToken, url })
 ```
 
 | Option | What it does |
@@ -57,7 +57,12 @@ new PromptClient({ host, token, tls = false, natsUrl, url })
 | `url` | a full `priompt://<token>@host:port` string; defaults to `PRIOMPT_URL` |
 | `token` | sent as `authorization: Bearer <token>`; explicit value wins over the url's token |
 | `tls` | use TLS to reach the server |
-| `natsUrl` | endpoint for `subscribe()` |
+| `natsUrl` | broker endpoint for `subscribe()`; may carry the credential as `nats://<token>@host:4222` |
+| `natsToken` | broker credential, if you would rather pass it separately; wins over the url's |
+
+The broker has its own credential, separate from the gRPC token — change events
+name every prompt that moves and carry the verdict agents act on, so the server
+requires one whenever NATS is reachable off-loopback.
 
 ## Everything the client can do
 
@@ -74,7 +79,16 @@ When someone publishes a new version, the server pushes a notification that
 includes a **semantic verdict** — how big the change really is. Auto-reload the
 safe ones, hold the dangerous ones:
 
+`subscribe()` needs `natsUrl` — it talks to the broker directly, not through the
+gRPC endpoint — and the broker's own credential when one is configured.
+
 ```js
+const client = new PromptClient({
+  host: "localhost:8443",
+  token: "…",                                   // gRPC bearer token
+  natsUrl: "nats://<nats-token>@localhost:4222", // or natsToken: "<nats-token>"
+});
+
 client.subscribe("priompt://acme/support/agent", (version, classification) => {
   if (classification === "structural") {
     alertAHuman(version);     // the meaning changed shape — review it
@@ -83,6 +97,10 @@ client.subscribe("priompt://acme/support/agent", (version, classification) => {
   }
 });
 ```
+
+Treat the event as a notification that *something* changed, and re-fetch with
+`get()` over the authenticated gRPC channel rather than trusting the version and
+classification in the payload.
 
 ## For maintainers of this library
 
