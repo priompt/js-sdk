@@ -8,16 +8,30 @@
 // hold a structural one. The verdict rides along with the notification, so the
 // decision needs no extra round trip.
 //
-// env: PRIOMPT_HOST (localhost:8443), PRIOMPT_NATS (nats://127.0.0.1:4222)
+// env: PRIOMPT_HOST  (localhost:8443)
+//      PRIOMPT_TOKEN (bearer token, if the server requires one)
+//      PRIOMPT_NATS  (nats://127.0.0.1:4222 — carry the broker credential in the
+//                     url when it needs one: nats://<token>@host:4222)
 
 const { PromptClient } = require("./client");
 
 const HOST = process.env.PRIOMPT_HOST || "localhost:8443";
+const TOKEN = process.env.PRIOMPT_TOKEN || "";
 const NATS = process.env.PRIOMPT_NATS || "nats://127.0.0.1:4222";
 
-// Verdicts an agent may take without a human. Anything else — today that means
-// "structural" — is held.
-const AUTO_RELOAD = new Set(["minor edit", "localized tweak", "new", ""]);
+// Verdicts an agent may act on without a human. Anything else is held.
+//
+// The empty verdict is deliberately NOT in this set. The server returns "" when
+// it could not classify the change at all — a misconfigured or unreachable
+// embedding endpoint, for instance — and it publishes anyway, because the new
+// version is durable and the verdict is only advisory. So "" does not mean
+// "safe"; it means "nobody checked".
+//
+// Treating it as safe inverts the whole point of the gate: the moment the
+// safety check breaks, every change would sail through unreviewed, and it would
+// look exactly like a run of harmless edits. An unauthenticated forged
+// notification carries no verdict either. Fail closed.
+const AUTO_RELOAD = new Set(["minor edit", "localized tweak", "new"]);
 
 // Stand-in values so a rendered prompt looks like a real call.
 const SAMPLES = {
@@ -62,7 +76,7 @@ async function load(client, uri) {
 }
 
 async function main() {
-	const client = new PromptClient({ host: HOST, natsUrl: NATS });
+	const client = new PromptClient({ host: HOST, token: TOKEN, natsUrl: NATS });
 
 	for (const uri of uris) {
 		const v = await load(client, uri);
@@ -86,7 +100,11 @@ async function main() {
 				log("", `  serving: ${render(uri)}`);
 			} else {
 				held.set(uri, version);
-				log("HELD", `${uri}  ${verdict} — needs review`);
+				const why = classification
+					? `${verdict} — needs review`
+					: `no verdict — the server could not classify this change; ` +
+						`check its embedding endpoint`;
+				log("HELD", `${uri}  ${why}`);
 				log("", `  still serving @${short(current && current.version)}, ` +
 					`pending @${short(version)}`);
 			}
