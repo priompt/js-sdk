@@ -1,5 +1,5 @@
 {
-  "name": "priompt-client",
+  "name": "@priompt/client",
   "version": "0.1.0",
   "description": "Priompt JavaScript adapter",
   "main": "client.js",
@@ -19,6 +19,15 @@
     "llm",
     "prompt-management"
   ],
+  "files": [
+    "client.js",
+    "proto/",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "sync-proto": "node -e \"const fs=require('fs');fs.mkdirSync('proto/priompt/v1',{recursive:true});fs.copyFileSync('../proto/proto/priompt/v1/prompt.proto','proto/priompt/v1/prompt.proto')\""
   },

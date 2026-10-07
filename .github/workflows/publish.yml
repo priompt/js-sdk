@@ -1,0 +1,34 @@
+name: publish
+
+# Publishes @priompt/client to npm when a GitHub Release is published.
+#
+# Uses npm Trusted Publishing (OIDC) — no NPM_TOKEN. This requires a one-time
+# setup on npmjs.com AFTER the package's first publish:
+#   npmjs.com -> @priompt/client -> Settings -> Trusted Publisher
+#     Provider: GitHub Actions
+#     Owner/Repo: priompt/js-sdk
+#     Workflow:  publish.yml
+#     Environment: npm   (optional but recommended; matches `environment:` below)
+# Until that trusted publisher exists, this job will fail — see README for the
+# bootstrap (first-publish) steps.
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write            # required for npm OIDC trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: "https://registry.npmjs.org"
+      # npm >= 11.5.1 is required for OIDC trusted publishing
+      - run: npm install -g npm@latest
+      - run: npm install
+      - run: npm publish

@@ -20,13 +20,14 @@ runtime via `@grpc/proto-loader`.
 ## Install
 
 ```sh
-npm i @grpc/grpc-js @grpc/proto-loader        # and `nats` only if you use subscribe()
+npm i @priompt/client        # pulls @grpc/grpc-js and @grpc/proto-loader
+                             # add `nats` only if you use subscribe()
 ```
 
 ## Five lines to your first prompt
 
 ```js
-const { PromptClient } = require("priompt-client");
+const { PromptClient } = require("@priompt/client");
 
 const client = new PromptClient({ host: "localhost:8443" }); // token: "..." if auth is on
 const prompt = await client.get("priompt://acme/onboarding/welcome");
