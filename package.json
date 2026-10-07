@@ -3,6 +3,22 @@
   "version": "0.1.0",
   "description": "Priompt JavaScript adapter",
   "main": "client.js",
+  "license": "Apache-2.0",
+  "author": "Priompt <oss@priompt.com> (https://github.com/priompt)",
+  "homepage": "https://github.com/priompt/js-sdk",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/priompt/js-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/priompt/js-sdk/issues"
+  },
+  "keywords": [
+    "prompts",
+    "grpc",
+    "llm",
+    "prompt-management"
+  ],
   "scripts": {
     "sync-proto": "node -e \"const fs=require('fs');fs.mkdirSync('proto/priompt/v1',{recursive:true});fs.copyFileSync('../proto/proto/priompt/v1/prompt.proto','proto/priompt/v1/prompt.proto')\""
   },

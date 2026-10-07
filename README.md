@@ -2,14 +2,16 @@
 
 **The piece your Node app imports to fetch its prompts.** Instead of
 hard-coding prompt text in your source, your app asks a
-[Priompt](https://github.com/) server for it by address — and can be notified
-the moment a prompt changes.
+[Priompt](https://github.com/priompt) server for it by address — and can be
+notified the moment a prompt changes.
 
-```mermaid
-flowchart LR
-    APP["🟨 Your Node app"] --> C["PromptClient<br/>(this library)"]
-    C -->|"gRPC: get / diff / publish"| S["🗄️ Priompt server"]
-    S -.->|"'prompt changed' push (NATS)"| C
+```
+  🟨 Your Node app
+        │
+        ▼
+  PromptClient (this library) ──gRPC: get / diff / publish──▶ 🗄️  Priompt server
+        ▲                                                          │
+        └──────────── "prompt changed" push (NATS) ────────────────┘
 ```
 
 No codegen anywhere: the client loads `proto/priompt/v1/prompt.proto` at
