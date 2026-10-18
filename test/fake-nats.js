@@ -2,7 +2,7 @@
 // client's subscribe(): INFO, CONNECT (with token auth), PING/PONG, SUB and MSG.
 const net = require("net");
 
-function startFakeNats({ token } = {}) {
+function startFakeNats({ token, lossyAuthErr = false } = {}) {
   const subs = []; // { sock, subject, sid }
   const sockets = new Set();
   const server = net.createServer((sock) => {
@@ -23,7 +23,13 @@ function startFakeNats({ token } = {}) {
           case "CONNECT": {
             const opts = JSON.parse(args.join(" "));
             if (token && opts.auth_token !== token) {
-              sock.end("-ERR 'Authorization Violation'\r\n");
+              // nats-server answers -ERR and closes. nats.js writes CONNECT
+              // and PING separately, so its PING lands on the closed socket,
+              // the kernel answers with a reset, and the client never reads
+              // the -ERR (observed against priompt v0.7.2). With lossyAuthErr
+              // the fake reproduces that outcome for nats.js clients.
+              if (lossyAuthErr && opts.lang === "nats.js") sock.resetAndDestroy();
+              else sock.end("-ERR 'Authorization Violation'\r\n");
               return;
             }
             break;
