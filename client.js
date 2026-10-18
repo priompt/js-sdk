@@ -46,6 +46,55 @@ function parseNatsUrl(raw) {
   }
 }
 
+// checkNatsAuth runs the broker handshake once by hand, with CONNECT and PING
+// in a single write. nats.js writes them separately: a broker that rejects the
+// CONNECT closes before reading the PING, the late PING draws a TCP reset, and
+// the client loses the broker's -ERR and retries until a generic TIMEOUT about
+// 20 s later. Sent together, both are read and the -ERR arrives. Only a -ERR
+// rejects; anything else (a TLS broker, a network error) is left for the real
+// connect to report.
+function checkNatsAuth(servers, token) {
+  return new Promise((resolve, reject) => {
+    let u;
+    try {
+      u = new URL(servers);
+    } catch {
+      return resolve();
+    }
+    if (u.protocol !== "nats:") return resolve();
+    const sock = require("net").connect(Number(u.port) || 4222, u.hostname.replace(/^\[|\]$/g, ""));
+    const done = (err) => {
+      sock.destroy();
+      err ? reject(err) : resolve();
+    };
+    sock.setTimeout(5000, () => done());
+    sock.on("error", () => done());
+    sock.on("close", () => done());
+    let buf = "";
+    sock.on("data", (d) => {
+      buf += d;
+      let i;
+      while ((i = buf.indexOf("\r\n")) >= 0) {
+        const line = buf.slice(0, i);
+        buf = buf.slice(i + 2);
+        if (!line.startsWith("INFO ")) {
+          if (!line.startsWith("-ERR")) return done(); // PONG: credentials accepted
+          const msg = line.slice(4).trim().replace(/^'|'$/g, "");
+          return done(new Error(`NATS broker rejected the connection: ${msg} (check natsToken or the token in natsUrl)`));
+        }
+        let info = {};
+        try {
+          info = JSON.parse(line.slice(5));
+        } catch {}
+        if (info.tls_required) return done();
+        const connect = { verbose: false, pedantic: false, protocol: 1 };
+        if (token) connect.auth_token = token;
+        sock.write(`CONNECT ${JSON.stringify(connect)}\r\nPING\r\n`);
+      }
+    });
+  });
+}
+
 class PromptClient {
   // One connection string covers local/self-host/cloud: pass url or set
   // PRIOMPT_URL (priompt://<token>@host:port). An explicit host wins; an
@@ -129,6 +178,7 @@ class PromptClient {
   async subscribe(uri, onChange) {
     if (!this._natsUrl) throw new Error("set natsUrl on PromptClient to subscribe");
     const { connect, StringCodec } = require("nats");
+    await checkNatsAuth(this._natsUrl, this._natsToken);
     const opts = { servers: this._natsUrl };
     if (this._natsToken) opts.token = this._natsToken;
     const nc = await connect(opts);
