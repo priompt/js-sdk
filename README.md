@@ -21,7 +21,7 @@ runtime via `@grpc/proto-loader`.
 
 ```sh
 npm i @priompt/client        # pulls @grpc/grpc-js and @grpc/proto-loader
-                             # add `nats` only if you use subscribe()
+                             # and, optionally, @nats-io/transport-node for subscribe()
 ```
 
 ## Five lines to your first prompt

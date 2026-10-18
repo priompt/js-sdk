@@ -15,5 +15,6 @@ jobs:
           node-version: 24
       - run: npm install
       - run: node --check client.js
+      - run: npm test
       # construct the client so the vendored proto is parsed at load time
       - run: node -e "new (require('./client.js').PromptClient)({host:'localhost:1'})"
