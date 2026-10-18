@@ -17,8 +17,17 @@ function loadService() {
   return grpc.loadPackageDefinition(def).priompt.v1;
 }
 
+// subject maps a prompt URI to its NATS subject exactly as the server's
+// pubsub.Subject does: each URI segment is one subject token, with every byte
+// outside [A-Za-z0-9_-] percent-encoded in uppercase hex ("." is the NATS token
+// separator), so priompt://acme.corp/x/a.b -> priompt.acme%2Ecorp.x.a%2Eb.
 function subject(uri) {
-  return "priompt." + uri.replace("priompt://", "").replace(/\//g, ".");
+  const path = uri.startsWith("priompt://") ? uri.slice("priompt://".length) : uri;
+  const token = (seg) =>
+    Array.from(Buffer.from(seg, "utf8"), (c) =>
+      /[A-Za-z0-9_-]/.test(String.fromCharCode(c)) ? String.fromCharCode(c) : "%" + c.toString(16).toUpperCase().padStart(2, "0")
+    ).join("");
+  return "priompt." + path.split("/").map(token).join(".");
 }
 
 // parseUrl splits a priompt://<token>@host:port connection URL into { host,
@@ -154,4 +163,4 @@ class PromptClient {
   }
 }
 
-module.exports = { PromptClient };
+module.exports = { PromptClient, subject };
