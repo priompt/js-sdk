@@ -1,6 +1,6 @@
 // Priompt JavaScript adapter (Node). Mirrors the Python client.
 // Loads the .proto at runtime via @grpc/proto-loader — no codegen step.
-//   npm i @grpc/grpc-js @grpc/proto-loader   (and `nats` only if you subscribe)
+//   npm i @grpc/grpc-js @grpc/proto-loader   (and `@nats-io/transport-node` only if you subscribe)
 const path = require("path");
 const grpc = require("@grpc/grpc-js");
 const protoLoader = require("@grpc/proto-loader");
@@ -124,22 +124,21 @@ class PromptClient {
   // subscribe registers as a subscriber: onChange(versionHash, classification)
   // fires on each republish (push). classification is the semantic diff verdict
   // (structural | localized tweak | minor edit | new | ""), so an agent can
-  // auto-reload a tweak but hold a structural change. Needs `npm i nats` and
-  // natsUrl set. Returns the connection.
+  // auto-reload a tweak but hold a structural change. Needs the optional
+  // `@nats-io/transport-node` dependency and natsUrl set. Returns the connection.
   async subscribe(uri, onChange) {
     if (!this._natsUrl) throw new Error("set natsUrl on PromptClient to subscribe");
-    const { connect, StringCodec } = require("nats");
+    const { connect } = require("@nats-io/transport-node");
     const opts = { servers: this._natsUrl };
     if (this._natsToken) opts.token = this._natsToken;
     const nc = await connect(opts);
-    const sc = StringCodec();
     (async () => {
       for await (const m of nc.subscribe(subject(uri))) {
         let ev;
         try {
-          ev = JSON.parse(sc.decode(m.data));
+          ev = JSON.parse(m.string());
         } catch {
-          ev = { version: sc.decode(m.data) }; // pre-0.7 bare-hash body
+          ev = { version: m.string() }; // pre-0.7 bare-hash body
         }
         onChange(ev.version || "", ev.classification || "");
       }
