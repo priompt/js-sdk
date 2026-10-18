@@ -1,6 +1,6 @@
 {
   "name": "@priompt/client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Priompt JavaScript adapter",
   "main": "client.js",
   "license": "Apache-2.0",
