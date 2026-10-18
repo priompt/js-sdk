@@ -29,7 +29,8 @@
     "access": "public"
   },
   "scripts": {
-    "sync-proto": "node -e \"const fs=require('fs');fs.mkdirSync('proto/priompt/v1',{recursive:true});fs.copyFileSync('../proto/proto/priompt/v1/prompt.proto','proto/priompt/v1/prompt.proto')\""
+    "sync-proto": "node -e \"const fs=require('fs');fs.mkdirSync('proto/priompt/v1',{recursive:true});fs.copyFileSync('../proto/proto/priompt/v1/prompt.proto','proto/priompt/v1/prompt.proto')\"",
+    "test": "node --test \"test/*.test.js\""
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.10.0",

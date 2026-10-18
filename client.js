@@ -48,17 +48,20 @@ function parseNatsUrl(raw) {
 
 class PromptClient {
   // One connection string covers local/self-host/cloud: pass url or set
-  // PRIOMPT_URL (priompt://<token>@host:port). An explicit host wins; an
-  // explicit token overrides the URL's token.
+  // PRIOMPT_URL (priompt://<token>@host:port). An explicit host wins. The
+  // token is, in order: the explicit token, PRIOMPT_TOKEN (as the CLI reads
+  // it), then the URL's token.
   constructor({ host, token, tls = false, caCert, clientCert, clientKey, natsUrl, natsToken, url } = {}) {
+    let urlToken;
     if (!host) {
       const raw = url || process.env.PRIOMPT_URL;
       if (raw) {
         const parsed = parseUrl(raw);
         host = parsed.host;
-        if (token === undefined) token = parsed.token;
+        urlToken = parsed.token;
       }
     }
+    if (token === undefined) token = process.env.PRIOMPT_TOKEN || urlToken;
     if (!host) throw new Error("PromptClient needs host, url, or PRIOMPT_URL");
     const pkg = loadService();
     // caCert, clientCert and clientKey are file paths.
