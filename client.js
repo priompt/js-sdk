@@ -1,6 +1,6 @@
 // Priompt JavaScript adapter (Node). Mirrors the Python client.
 // Loads the .proto at runtime via @grpc/proto-loader — no codegen step.
-//   npm i @grpc/grpc-js @grpc/proto-loader   (and `nats` only if you subscribe)
+//   npm i @grpc/grpc-js @grpc/proto-loader   (and `@nats-io/transport-node` only if you subscribe)
 const path = require("path");
 const grpc = require("@grpc/grpc-js");
 const protoLoader = require("@grpc/proto-loader");
@@ -17,8 +17,17 @@ function loadService() {
   return grpc.loadPackageDefinition(def).priompt.v1;
 }
 
+// subject maps a prompt URI to its NATS subject exactly as the server's
+// pubsub.Subject does: each URI segment is one subject token, with every byte
+// outside [A-Za-z0-9_-] percent-encoded in uppercase hex ("." is the NATS token
+// separator), so priompt://acme.corp/x/a.b -> priompt.acme%2Ecorp.x.a%2Eb.
 function subject(uri) {
-  return "priompt." + uri.replace("priompt://", "").replace(/\//g, ".");
+  const path = uri.startsWith("priompt://") ? uri.slice("priompt://".length) : uri;
+  const token = (seg) =>
+    Array.from(Buffer.from(seg, "utf8"), (c) =>
+      /[A-Za-z0-9_-]/.test(String.fromCharCode(c)) ? String.fromCharCode(c) : "%" + c.toString(16).toUpperCase().padStart(2, "0")
+    ).join("");
+  return "priompt." + path.split("/").map(token).join(".");
 }
 
 // parseUrl splits a priompt://<token>@host:port connection URL into { host,
@@ -97,17 +106,20 @@ function checkNatsAuth(servers, token) {
 
 class PromptClient {
   // One connection string covers local/self-host/cloud: pass url or set
-  // PRIOMPT_URL (priompt://<token>@host:port). An explicit host wins; an
-  // explicit token overrides the URL's token.
+  // PRIOMPT_URL (priompt://<token>@host:port). An explicit host wins. The
+  // token is, in order: the explicit token, PRIOMPT_TOKEN (as the CLI reads
+  // it), then the URL's token.
   constructor({ host, token, tls = false, caCert, clientCert, clientKey, natsUrl, natsToken, url } = {}) {
+    let urlToken;
     if (!host) {
       const raw = url || process.env.PRIOMPT_URL;
       if (raw) {
         const parsed = parseUrl(raw);
         host = parsed.host;
-        if (token === undefined) token = parsed.token;
+        urlToken = parsed.token;
       }
     }
+    if (token === undefined) token = process.env.PRIOMPT_TOKEN || urlToken;
     if (!host) throw new Error("PromptClient needs host, url, or PRIOMPT_URL");
     const pkg = loadService();
     // caCert, clientCert and clientKey are file paths.
@@ -173,23 +185,22 @@ class PromptClient {
   // subscribe registers as a subscriber: onChange(versionHash, classification)
   // fires on each republish (push). classification is the semantic diff verdict
   // (structural | localized tweak | minor edit | new | ""), so an agent can
-  // auto-reload a tweak but hold a structural change. Needs `npm i nats` and
-  // natsUrl set. Returns the connection.
+  // auto-reload a tweak but hold a structural change. Needs the optional
+  // `@nats-io/transport-node` dependency and natsUrl set. Returns the connection.
   async subscribe(uri, onChange) {
     if (!this._natsUrl) throw new Error("set natsUrl on PromptClient to subscribe");
-    const { connect, StringCodec } = require("nats");
+    const { connect } = require("@nats-io/transport-node");
     await checkNatsAuth(this._natsUrl, this._natsToken);
     const opts = { servers: this._natsUrl };
     if (this._natsToken) opts.token = this._natsToken;
     const nc = await connect(opts);
-    const sc = StringCodec();
     (async () => {
       for await (const m of nc.subscribe(subject(uri))) {
         let ev;
         try {
-          ev = JSON.parse(sc.decode(m.data));
+          ev = JSON.parse(m.string());
         } catch {
-          ev = { version: sc.decode(m.data) }; // pre-0.7 bare-hash body
+          ev = { version: m.string() }; // pre-0.7 bare-hash body
         }
         onChange(ev.version || "", ev.classification || "");
       }
@@ -202,4 +213,4 @@ class PromptClient {
   }
 }
 
-module.exports = { PromptClient };
+module.exports = { PromptClient, subject };

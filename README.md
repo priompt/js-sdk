@@ -21,7 +21,7 @@ runtime via `@grpc/proto-loader`.
 
 ```sh
 npm i @priompt/client        # pulls @grpc/grpc-js and @grpc/proto-loader
-                             # add `nats` only if you use subscribe()
+                             # and, optionally, @nats-io/transport-node for subscribe()
 ```
 
 ## Five lines to your first prompt
@@ -49,6 +49,7 @@ What comes back from `get()`:
 One environment variable configures everything:
 `PRIOMPT_URL=priompt://<token>@host:port` carries the address *and* the
 credential, so `new PromptClient()` with no arguments just works.
+`PRIOMPT_TOKEN`, as the CLI reads it, wins over the token in the url.
 
 ```js
 new PromptClient({ host, token, tls = false, natsUrl, natsToken, url })
@@ -58,7 +59,7 @@ new PromptClient({ host, token, tls = false, natsUrl, natsToken, url })
 | --- | --- |
 | `host` | `address:port` of the server. Optional if `url` or `PRIOMPT_URL` is set |
 | `url` | a full `priompt://<token>@host:port` string; defaults to `PRIOMPT_URL` |
-| `token` | sent as `authorization: Bearer <token>`; explicit value wins over the url's token |
+| `token` | sent as `authorization: Bearer <token>`; defaults to `PRIOMPT_TOKEN`, then the url's token |
 | `tls` | use TLS to reach the server |
 | `caCert` | path to the CA certificate that signed the server's cert — required for a private CA, which is the usual self-hosted case |
 | `clientCert` / `clientKey` | paths to a client certificate and key, for a server started with `-client-ca` (mTLS). Both or neither |

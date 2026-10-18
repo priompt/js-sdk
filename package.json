@@ -37,6 +37,6 @@
     "@grpc/proto-loader": "^0.7.0"
   },
   "optionalDependencies": {
-    "nats": "^2.0.0"
+    "@nats-io/transport-node": "^3.0.0"
   }
 }
