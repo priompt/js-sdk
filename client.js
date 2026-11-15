@@ -187,7 +187,9 @@ class PromptClient {
   // (structural | localized tweak | minor edit | new | ""), so an agent can
   // auto-reload a tweak but hold a structural change. Needs the optional
   // `@nats-io/transport-node` dependency and natsUrl set. Returns the connection.
-  async subscribe(uri, onChange) {
+  // A throw or rejection from onChange goes to onError (default: console.error)
+  // instead of becoming an unhandled rejection that exits the host process.
+  async subscribe(uri, onChange, { onError = (err) => console.error(`priompt subscribe ${uri}:`, err) } = {}) {
     if (!this._natsUrl) throw new Error("set natsUrl on PromptClient to subscribe");
     const { connect } = require("@nats-io/transport-node");
     await checkNatsAuth(this._natsUrl, this._natsToken);
@@ -199,12 +201,15 @@ class PromptClient {
         let ev;
         try {
           ev = JSON.parse(m.string());
-        } catch {
-          ev = { version: m.string() }; // pre-0.7 bare-hash body
-        }
-        onChange(ev.version || "", ev.classification || "");
+        } catch {}
+        // pre-0.7 bare-hash body, or anything that isn't an event object
+        // (an all-digit hash parses as a number, "null" as null).
+        if (!ev || typeof ev !== "object") ev = { version: m.string() };
+        Promise.resolve()
+          .then(() => onChange(String(ev.version || ""), ev.classification || ""))
+          .catch(onError);
       }
-    })();
+    })().catch(onError);
     return nc;
   }
 

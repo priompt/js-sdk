@@ -76,7 +76,8 @@ requires one whenever NATS is reachable off-loopback.
 await client.get(uri, ref)                 // fetch (ref = branch/commit hash to pin a version)
 await client.diff(uri, newTemplate)        // semantic diff: stored version vs. your draft
 await client.publish(uri, template, slots) // publish a new version + notify subscribers
-client.subscribe(uri, onChange)            // be notified the moment the prompt changes
+client.subscribe(uri, onChange, { onError }) // be notified the moment the prompt changes;
+                                             // onChange errors go to onError (default console.error)
 ```
 
 ## Live updates
