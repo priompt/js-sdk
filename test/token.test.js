@@ -42,6 +42,17 @@ test("the token in PRIOMPT_URL is used when PRIOMPT_TOKEN is unset", () => {
   assert.strictEqual(bearer({}, { PRIOMPT_URL: "priompt://urltok@localhost:1" }), "Bearer urltok");
 });
 
+test("an encoded token in PRIOMPT_URL is decoded", () => {
+  assert.strictEqual(bearer({}, { PRIOMPT_URL: "priompt://ab%2Bc%3D@localhost:1" }), "Bearer ab+c=");
+});
+
+test("a malformed percent-encoded token in PRIOMPT_URL throws a clear error", () => {
+  assert.throws(
+    () => bearer({}, { PRIOMPT_URL: "priompt://%ZZ@localhost:1" }),
+    /not valid percent-encoding/
+  );
+});
+
 test("no token configured sends no authorization header", () => {
   assert.strictEqual(bearer({ host: "localhost:1" }, {}), undefined);
 });
