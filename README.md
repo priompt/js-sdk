@@ -29,11 +29,22 @@ npm i @priompt/client        # pulls @grpc/grpc-js and @grpc/proto-loader
 ```js
 const { PromptClient } = require("@priompt/client");
 
-const client = new PromptClient({ host: "localhost:8443" }); // token: "..." if auth is on
-const prompt = await client.get("priompt://acme/onboarding/welcome");
+async function main() {
+  const client = new PromptClient({ host: "localhost:8443" }); // token: "..." if auth is on
+  try {
+    const prompt = await client.get("priompt://acme/onboarding/welcome");
 
-console.log(prompt.template);       // Hi {name}, welcome to {org}!
-console.log(prompt.version_hash);   // 80ec4e4d…
+    console.log(prompt.template);       // Hi {name}, welcome to {org}!
+    console.log(prompt.version_hash);   // 80ec4e4d…
+  } finally {
+    client.close();
+  }
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
 ```
 
 What comes back from `get()`:
@@ -76,7 +87,7 @@ requires one whenever NATS is reachable off-loopback.
 await client.get(uri, ref)                 // fetch (ref = branch/commit hash to pin a version)
 await client.diff(uri, newTemplate)        // semantic diff: stored version vs. your draft
 await client.publish(uri, template, slots) // publish a new version + notify subscribers
-client.subscribe(uri, onChange)            // be notified the moment the prompt changes
+const nc = await client.subscribe(uri, onChange) // keep nc to close the subscription later
 ```
 
 ## Live updates
@@ -89,22 +100,43 @@ through the prompt. Your app decides what to act on and what to hold:
 gRPC endpoint — and the broker's own credential when one is configured.
 
 ```js
-const client = new PromptClient({
-  host: "localhost:8443",
-  token: "…",                                   // gRPC bearer token
-  natsUrl: "nats://<nats-token>@localhost:4222", // or natsToken: "<nats-token>"
-});
+const { PromptClient } = require("@priompt/client");
 
-client.subscribe("priompt://acme/support/agent", (version, classification) => {
-  // Which verdicts this app acts on by itself. Everything else waits for a
-  // human — including an empty verdict, which means the server could not
-  // classify the change and published anyway. "" does not mean "safe"; it
-  // means nobody checked.
-  if (["minor edit", "localized tweak", "new"].includes(classification)) {
-    reload(version);          // contained change — pick it up
-  } else {
-    alertAHuman(version);     // structural, or unclassified — hold it
+async function main() {
+  const client = new PromptClient({
+    host: "localhost:8443",
+    token: "…",                                   // gRPC bearer token
+    natsUrl: "nats://<nats-token>@localhost:4222", // or natsToken: "<nats-token>"
+  });
+
+  try {
+    const nc = await client.subscribe("priompt://acme/support/agent", (version, classification) => {
+      // Which verdicts this app acts on by itself. Everything else waits for a
+      // human — including an empty verdict, which means the server could not
+      // classify the change and published anyway. "" does not mean "safe"; it
+      // means nobody checked.
+      if (["minor edit", "localized tweak", "new"].includes(classification)) {
+        reload(version);          // contained change — pick it up
+      } else {
+        alertAHuman(version);     // structural, or unclassified — hold it
+      }
+    });
+
+    // Keep listening until the user stops the app.
+    process.once("SIGINT", async () => {
+      await nc.close();
+      client.close();
+    });
+  } catch (error) {
+    console.error("Could not subscribe; check that the broker is reachable and its credentials are valid.", error);
+    client.close();
+    process.exitCode = 1;
   }
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
 });
 ```
 
