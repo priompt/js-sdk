@@ -36,7 +36,7 @@ function parseUrl(raw) {
   if (!raw.includes("://")) return { host: raw, token: undefined };
   const u = new URL(raw);
   const host = u.port ? `${u.hostname}:${u.port}` : u.hostname;
-  return { host, token: u.username || undefined };
+  return { host, token: u.username ? decodeURIComponent(u.username) : undefined };
 }
 
 // parseNatsUrl splits a credential out of a nats:// url. The nats.js client
